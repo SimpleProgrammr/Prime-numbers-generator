@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "Prime-numbers-generator": {
+      "commandName": "Project",
+      "commandLineArgs": "300000 1 y"
+    }
+  }
+}
