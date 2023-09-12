@@ -10,6 +10,8 @@ namespace primes_generator
         static int perc;
         static long howMany;
         static bool add = true;
+        static readonly List<Task> tasks = new() ;
+        static long i;
 
         public static void Main(string[] args)
         {
@@ -25,40 +27,43 @@ namespace primes_generator
                     areWeSaving = false;
             }
 
+            tasks.Add(IsDivisible(2));
             var clk = new Stopwatch();
 
             long pc = primes.Count;
-            clk.Start();
-            for (long i = 3; ; i++)
+            
+            
+            for (i = 3; ; i++)
             {
+                clk.Start();
 
                 if (pc >= howMany)
                     break;
 
 
 
-                if (IsPrimeAsync(i).Result)
+                if (IsPrimeAsync().Result)
                 {
                     primes.Add(i);
                     pc++;
-
+                    tasks.Add(IsDivisible(i));
                     if (pc % perc == 0 || pc == howMany)
                     {
                         clk.Stop();
                         Console.WriteLine($"{pc}\t{(int)((double)pc / (double)howMany * 100)}%\t{clk.ElapsedMilliseconds}ms");
-                        clk.Restart();
+
                     }
                 }
             }
 
             if (areWeSaving)
                 Save();
+
         }
 
-        static Task IsDivisible(long num, long prime)
+        static Task IsDivisible( long prime)
         {
-            Thread.Sleep(1);
-            if (num % prime == 0)
+            if (i % prime == 0)
             {
                 add = false;
                 return Task.CompletedTask;
@@ -130,23 +135,9 @@ namespace primes_generator
 
         }
 
-        static async Task<bool> IsPrimeAsync(long i)
+        static async Task<bool> IsPrimeAsync()
         {
-
-            List<Task> tasks = new() { };
-            Parallel.ForEach(primes,(j) =>
-            {
-                var task = new Task(() => IsDivisible(i, j));
-                if (task == null)
-                {
-                    throw new Exception("Bro wtf");
-                }
-                tasks.Add(task);
-            });
-
-            Thread.Sleep(1); 
-
-            await Task.WhenAll(tasks.ToArray());
+            Task.WaitAll(tasks.ToArray());
 
             if (add)
             {
