@@ -1,198 +1,137 @@
-﻿using System.Diagnostics;
+﻿
+using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 
-
-namespace primes_generator
+class PrimeGenerator
 {
-    class Core
+    static long howMany = 1;
+    static bool areWeSaving = true;
+    static readonly long numberOfThreads = Environment.ProcessorCount;
+    static List<long> primeList = new();
+    static short progress = 0;
+
+    static void Main()
+    { 
+
+        StartMenu();
+
+        ConcurrentBag<long> primes = new();
+        CancellationTokenSource cancellationTokenSource = new();
+
+        Console.WriteLine($"Generowanie liczb pierwszych w zakresie od 2 do {howMany}...");
+
+        List<Task> tasks = new();
+
+        for (int i = 0; i < numberOfThreads; i++)
+        {
+            int start = 2 + i; // Rozpoczęcie od różnych reszt z dzielenia
+            Task task = Task.Factory.StartNew(() => FindPrimesInRange(start, howMany, primes, cancellationTokenSource.Token));
+            tasks.Add(task);
+        }
+
+        Task.WaitAll(tasks.ToArray());
+        cancellationTokenSource.Cancel(); // Anulowanie pozostałych zadań
+
+        primeList = primes.OrderBy(p => p).ToList();
+
+        Console.WriteLine();
+        if ( areWeSaving ) 
+            Save();
+    }
+
+    static void FindPrimesInRange(long start, long end, ConcurrentBag<long> primes, CancellationToken cancellationToken)
     {
-        static readonly List<long> primes = new() { 2 };
-        static bool areWeSaving = false;
-        static int perc;
-        static long howMany;
-        static bool add = true;
-        static readonly List<Task> tasks = new() ;
-        static long i;
-
-        public static void Main(string[] args)
+        for (long i = start; i <= end; i += Environment.ProcessorCount)
         {
-            if(args.Length != 3)    
-                StartMenu();
-            else
+            if (IsPrime(i))
             {
-                howMany = int.Parse(args[0]);
-                perc = (int)((double)howMany / (1 / (Convert.ToDouble(args[1]) / 100)));
-                if (args[2] == "y" || args[2] == "Y")
-                    areWeSaving = true;
-                else
-                    areWeSaving = false;
+                primes.Add(i);
             }
-
-            tasks.Add(IsDivisible(2));
-            var clk = new Stopwatch();
-
-            long pc = primes.Count;
-            
-            
-            for (i = 3; ; i++)
+            if (i % (long)((double)howMany * 0.01) == 0)
             {
-                clk.Start();
-
-                if (pc >= howMany)
-                    break;
-
-
-
-                if (IsPrimeAsync().Result)
-                {
-                    primes.Add(i);
-                    pc++;
-                    tasks.Add(IsDivisible(i));
-                    if (pc % perc == 0 || pc == howMany)
-                    {
-                        clk.Stop();
-                        Console.WriteLine($"{pc}\t{(int)((double)pc / (double)howMany * 100)}%\t{clk.ElapsedMilliseconds}ms");
-
-                    }
-                }
+                progress++;
+                Console.WriteLine(progress+"%");
             }
-
-            if (areWeSaving)
-                Save();
-
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return; // Przerwanie, jeśli żądanie anulowania zostało wysłane
+            }
         }
+    }
 
-        static Task IsDivisible( long prime)
+    static bool IsPrime(long number)
+    {
+        if (number <= 1)
         {
-            if (i % prime == 0)
-            {
-                add = false;
-                return Task.CompletedTask;
-            }
-
-            return Task.CompletedTask; ;
-        }
-
-        static void Save()
-        {
-            List<string> primesToSave = new();
-            for (int index = 0; index < primes.Count; index++)
-            {
-                long p = primes[index];
-                string s = p.ToString();
-                primesToSave.Add(s);
-                if (index % perc == 0 || index == howMany - 1)
-                    Console.WriteLine($"{p}\t{(int)(((double)index / (double)(howMany - 1)) * 100)}%");
-            }
-            File.WriteAllLines("PrimeNumbersOut.txt", primesToSave);
-        }
-
-        static void StartMenu()
-        {
-            Console.Write("Write a number of primes to generate(min. 1)");
-            try
-            {
-                howMany = Convert.ToInt64(Console.ReadLine());
-
-            }
-            catch
-            {
-                Console.WriteLine("Wrong value!!!");
-                Console.ReadKey();
-                return;
-            }
-            if (howMany <= 0)
-            {
-                Console.WriteLine("Wrong value!!!");
-                Console.ReadKey();
-                return;
-            }
-
-            Console.Write("What percent should data for statistics be collected ");
-
-            try
-            {
-                perc = (int)((double)howMany / (1 / (Convert.ToDouble(Console.ReadLine()) / 100)));
-                if (perc == howMany)
-                    perc = 1;
-            }
-            catch
-            {
-                Console.WriteLine("Wrong value!!!");
-                Console.ReadKey();
-                return;
-            }
-            if (perc <= 0)
-            {
-                Console.WriteLine("Wrong value!!!");
-                Console.ReadKey();
-                return;
-            }
-
-            Console.Write("Do you want to save resoult to .txt file?(Y/n) ");
-            if (Console.ReadKey().Key == ConsoleKey.Y)
-                areWeSaving = true;
-            Console.WriteLine();
-
-        }
-
-        static async Task<bool> IsPrimeAsync()
-        {
-            Task.WaitAll(tasks.ToArray());
-
-            if (add)
-            {
-                add = true;
-                return true;
-
-            }
-
-            add = true;
             return false;
         }
+
+        if (number <= 3)
+        {
+            return true;
+        }
+
+        if (number % 2 == 0 || number % 3 == 0)
+        {
+            return false;
+        }
+
+        int i = 5;
+        while (i * i <= number)
+        {
+            if (number % i == 0 || number % (i + 2) == 0)
+            {
+                return false;
+            }
+            i += 6;
+        }
+
+        return true;
+    }
+    static void StartMenu()
+    {
+        Console.Write("Write a number of primes to generate(min. 1)");
+        try
+        {
+            howMany = Convert.ToInt64(Console.ReadLine());
+
+        }
+        catch
+        {
+            Console.WriteLine("Wrong value!!!");
+            Console.ReadKey();
+            return;
+        }
+        if (howMany <= 0)
+        {
+            Console.WriteLine("Wrong value!!!");
+            Console.ReadKey();
+            return;
+        }
+
+        Console.Write("Do you want to save resoult to .txt file?(Y/n) ");
+        if (Console.ReadKey().Key == ConsoleKey.Y)
+            areWeSaving = true;
+        Console.WriteLine();
+
+    }
+
+    static void Save()
+    {
+        List<string> primesToSave = new();
+
+        foreach (var prime in primeList)
+            primesToSave.Add(prime.ToString());
+
+        File.WriteAllLines("C:\\Users\\micha\\Desktop\\Primes.txt", primesToSave);
+        Console.WriteLine("\nSaved\n");
     }
 }
 
-/*WOLNIEJSZE
-static async Task<bool> IsPrimeAsync(long i)
-        {
 
-            List<Task> tasks = new();
-            for (var j = 0; j < primes.Count; j++)
-            {
-                tasks.Add(IsDivisible(i, primes[j]));
-            }
-            await Task.WhenAll(tasks.ToArray());
-
-            if (add)
-            {
-                add = true;
-                return true;
-
-            }
-
-            add = true;
-            return false;
-        }
- */
-
-/*Szybsze
-        {
-
-            foreach (var j in primes)
-            {
-                IsDivisible(i, j);
-            }
-
-            if (add)
-            {
-                add = true;
-                return true;
-            }
-
-            add = true;
-            return false;
-        }
- */
 
 
 

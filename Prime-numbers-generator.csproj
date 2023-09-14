@@ -9,8 +9,16 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="OldVersion.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <None Remove="PrimeNumbers.txt" />
     <None Remove="PrimeNumbersOut.txt" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="OldVersion.cs" />
   </ItemGroup>
 
   <ItemGroup>
