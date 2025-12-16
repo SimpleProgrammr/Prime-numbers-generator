@@ -4,7 +4,7 @@
 ## Get latest from https://github.com/github/gitignore/blob/main/VisualStudio.gitignore
 
 #My Stuff
-Stats.xlsx
+Cs/Stats.xlsx
 OldVersion.cs
 
 # User-specific files
