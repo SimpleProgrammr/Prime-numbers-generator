@@ -36,9 +36,10 @@ public class Main {
             System.out.print("Do you want ot set upper limit?(y/N): ");
             var response = System.console().readLine().trim().toLowerCase().charAt(0);
             if (response == 'y' || response == 'n') {
-                if (response == 'y')
-                    upperLimit = Long.parseLong( System.console().readLine().trim().toLowerCase());
-                else
+                if (response == 'y') {
+                    System.out.print("Enter upper limit: ");
+                    upperLimit = Long.parseLong(System.console().readLine().trim().toLowerCase());
+                }else
                     upperLimit = Long.MAX_VALUE;
                 break;
 
@@ -48,16 +49,11 @@ public class Main {
         List<Long> newFound =  new ArrayList<>();
         AtomicLong counter = new AtomicLong();
         counter.set(0);
-        LongStream.range(2, upperLimit).boxed().parallel().forEach(num ->{
+        LongStream.range(2, upperLimit).boxed().parallel().forEachOrdered(num ->{
                 if(alreadyKnownNumbers.contains(num.toString()))
                     return;
-                long maxPart= Math.round(Math.sqrt(num));
-
-                for (long i = 2; i <= maxPart; i++){
-                    if(num%i ==0){
-                        return;
-                    }
-                }
+                if(!isPrime(num))
+                    return;
                 newFound.add(num);
                 long n = counter.getAndIncrement();
                 System.out.println(n + ". Found new prime: "+num);
@@ -71,5 +67,16 @@ public class Main {
     public static void clearConsole() {
         System.out.print("\033[H\033[2J");
         System.out.flush();
+    }
+
+    public static boolean isPrime(long num){
+        long maxPart= Math.round(Math.sqrt(num));
+
+        for (long i = 2; i <= maxPart; i++){
+            if(num%i ==0){
+                return false;
+            }
+        }
+        return true;
     }
 }
