@@ -9,14 +9,14 @@ import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
 public class Main {
-    public static void main(String[] args) throws IOException {
+    public static void main() throws IOException {
         var path = Path.of("./knownNumbers.txt");
         if(!Files.exists(path))
         {
             Files.createFile(path);
         }
         var alreadyKnownNumbers = Files.readAllLines(path);
-        long upperLimit = 0;
+        long upperLimit;
         while (true)
             if (alreadyKnownNumbers.size() > 1) {
                 clearConsole();
@@ -62,13 +62,10 @@ public class Main {
                 long n = counter.getAndIncrement();
                 System.out.println(n + ". Found new prime: "+num);
         });
-        alreadyKnownNumbers.forEach(num -> {
-            newFound.add(Long.parseLong( num));
-        });
+        alreadyKnownNumbers.forEach(num -> newFound.add(Long.parseLong( num)));
         Collections.sort(newFound);
         Files.write(Path.of("./knownNumbers.txt"),newFound.stream().map(Object::toString).collect(Collectors.toList()));
 
-        return;
     }
 
     public static void clearConsole() {
