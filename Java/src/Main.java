@@ -67,7 +67,7 @@ public class Main {
         TimerTask task = new TimerTask() {
             @Override
             public void run() {
-                System.out.println("Already found " + counter.get() + " Prime numbers\t\t|\t" + ((double)(System.nanoTime() - startTime)/1000000) + "ms");
+                System.out.println("Already found " + counter + " Prime numbers\t\t|\t" + ((double)(System.nanoTime() - startTime)/1000000) + "ms");
             }
         };
         timer.scheduleAtFixedRate(task, 500, 500);
