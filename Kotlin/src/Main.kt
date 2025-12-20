@@ -62,12 +62,12 @@ fun main(args: Array<String>) {
     }
     timer.scheduleAtFixedRate(task, 250, 250)
 
-    LongStream.range(downerLimit, upperLimit).parallel().forEachOrdered {
+    LongStream.range(downerLimit, upperLimit).parallel().forEach {
         if (knownPrimes.contains(it)) {
-            return@forEachOrdered
+            return@forEach
         }
         if (!it.isPrime()) {
-            return@forEachOrdered
+            return@forEach
         }
         newPrimes.add(it)
         counter.fetchAndIncrement()

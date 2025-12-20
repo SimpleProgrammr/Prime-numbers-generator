@@ -74,7 +74,7 @@ public class Main {
         timer.scheduleAtFixedRate(task, 250, 250);
 
 
-        LongStream.range(lesserLimit, upperLimit).parallel().forEachOrdered(num -> {
+        LongStream.range(lesserLimit, upperLimit).parallel().forEach(num -> {
             if (alreadyKnownNumbers.contains(num))
                 return;
             if (!isPrime(num))
