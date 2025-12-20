@@ -39,7 +39,8 @@ void main(String[] args) throws IOException {
     if (!Files.exists(path)) {
         Files.createFile(path);
     }
-    var alreadyKnownNumbers = Files.readAllLines(path);
+    var alreadyKnownNumbers = new ArrayList<Long>();
+            Files.readAllLines(path).stream().mapToLong(Long::parseLong).forEach(alreadyKnownNumbers::add);
     if (toClear)
         alreadyKnownNumbers.clear();
 
@@ -48,8 +49,8 @@ void main(String[] args) throws IOException {
     List<Long> newFound = new ArrayList<>();
     AtomicLong counter = new AtomicLong();
     counter.set(0);
-    LongStream.range(lesserLimit, upperLimit).boxed().parallel().forEachOrdered(num -> {
-        if (alreadyKnownNumbers.contains(num.toString()))
+    LongStream.range(lesserLimit, upperLimit).parallel().forEachOrdered(num -> {
+        if (alreadyKnownNumbers.contains(num))
             return;
         if (!isPrime(num))
             return;
@@ -61,7 +62,7 @@ void main(String[] args) throws IOException {
     double duration = ((double) (endtime - startTime)) / 1000000;
     IO.println("Time of execution: " + duration + "ms");
 
-    alreadyKnownNumbers.forEach(num -> newFound.add(Long.parseLong(num)));
+    newFound.addAll(alreadyKnownNumbers);
     Collections.sort(newFound);
     Files.write(path, newFound.stream().map(Object::toString).collect(Collectors.toList()));
 

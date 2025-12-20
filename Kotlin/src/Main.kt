@@ -50,7 +50,7 @@ fun main(args: Array<String>) {
     val counter = AtomicLong(0)
 
     val newPrimes = listOf<Long>().toMutableList()
-    LongStream.range(downerLimit, upperLimit).boxed().parallel().forEachOrdered {
+    LongStream.range(downerLimit, upperLimit).parallel().forEachOrdered {
         if (knownPrimes.contains(it)) {
             return@forEachOrdered
         }
@@ -64,10 +64,7 @@ fun main(args: Array<String>) {
     val endtime = System.nanoTime()
     val duration = ((endtime - startTime).toDouble()) / 1000000
     println("Time of execution: " + duration + "ms")
-    newPrimes.parallelStream().forEach {
-        if (it != null)
-            knownPrimes.add(it)
-    }
+    knownPrimes.addAll(newPrimes)
     try {
         val sortedList = knownPrimes.toList().sorted()
         File(path.toString()).writeText(
