@@ -1,9 +1,7 @@
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
@@ -46,6 +44,8 @@ public class Main {
             }
 
         }
+        long startTime = System.nanoTime();
+
         List<Long> newFound =  new ArrayList<>();
         AtomicLong counter = new AtomicLong();
         counter.set(0);
@@ -58,9 +58,13 @@ public class Main {
                 long n = counter.getAndIncrement();
                 System.out.println(n + ". Found new prime: "+num);
         });
+        long endtime = System.nanoTime();
+        double duration = ((double)(endtime - startTime))/1000;
+        System.out.println("Time of execution: " + duration + "ms");
+
         alreadyKnownNumbers.forEach(num -> newFound.add(Long.parseLong( num)));
         Collections.sort(newFound);
-        Files.write(Path.of("./knownNumbers.txt"),newFound.stream().map(Object::toString).collect(Collectors.toList()));
+        Files.write(path,newFound.stream().map(Object::toString).collect(Collectors.toList()));
 
     }
 
@@ -68,6 +72,8 @@ public class Main {
         System.out.print("\033[H\033[2J");
         System.out.flush();
     }
+
+
 
     public static boolean isPrime(long num){
         long maxPart= Math.round(Math.sqrt(num));
@@ -79,4 +85,6 @@ public class Main {
         }
         return true;
     }
+
+
 }
