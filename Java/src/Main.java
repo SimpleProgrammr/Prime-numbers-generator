@@ -59,7 +59,7 @@ public class Main {
                 System.out.println(n + ". Found new prime: "+num);
         });
         long endtime = System.nanoTime();
-        double duration = ((double)(endtime - startTime))/1000;
+        double duration = ((double)(endtime - startTime))/1000000;
         System.out.println("Time of execution: " + duration + "ms");
 
         alreadyKnownNumbers.forEach(num -> newFound.add(Long.parseLong( num)));
