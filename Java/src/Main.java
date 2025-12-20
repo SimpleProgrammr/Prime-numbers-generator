@@ -7,7 +7,7 @@ import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
 public class Main {
-    public void main(String[] args) throws IOException {
+    void main(String[] args) throws IOException {
         boolean toClear = true;
         var path = Path.of("./knownNumbers.txt");
         long upperLimit = 0, lesserLimit = Long.MAX_VALUE;
@@ -70,7 +70,7 @@ public class Main {
                 System.out.println("Already found " + counter + " Prime numbers\t\t|\t" + ((double)(System.nanoTime() - startTime)/1000000) + "ms");
             }
         };
-        timer.scheduleAtFixedRate(task, 500, 500);
+        timer.scheduleAtFixedRate(task, 250, 250);
 
 
         LongStream.range(lesserLimit, upperLimit).parallel().forEachOrdered(num -> {

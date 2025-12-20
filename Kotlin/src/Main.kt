@@ -60,7 +60,7 @@ fun main(args: Array<String>) {
             println("Already found " + counter + " Prime numbers\t\t|\t" + ((System.nanoTime() - startTime).toDouble() / 1000000) + "ms")
         }
     }
-    timer.scheduleAtFixedRate(task, 500, 500)
+    timer.scheduleAtFixedRate(task, 250, 250)
 
     LongStream.range(downerLimit, upperLimit).parallel().forEachOrdered {
         if (knownPrimes.contains(it)) {
