@@ -1,7 +1,7 @@
-import java.io.IO;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
@@ -10,10 +10,10 @@ import java.util.stream.LongStream;
 public class Main {
     void main(String[] args) throws IOException {
         boolean toClear = true;
-        var path = Path.of("./knownNumbers.txt");
+        final Path path;
         long upperLimit = 0, lesserLimit = Long.MAX_VALUE;
 
-
+        var temp = Path.of("./knownNumbers.txt");
         for (int i = 0; i < args.length; i++) {
             switch (i) {
                 case 0:
@@ -37,7 +37,7 @@ public class Main {
                             if (i + 1 >= args.length)
                                 break;
                             if (Files.exists(Path.of(args[i + 1])))
-                                path = Path.of(args[++i]);
+                                temp = Path.of(args[++i]);
                             break;
 
                     }
@@ -45,11 +45,13 @@ public class Main {
                     break;
             }
         }
+        path = temp;
 
 
         if (!Files.exists(path)) {
             Files.createFile(path);
         }
+        Files.writeString(path, "");
         var alreadyKnownNumbers = new ArrayList<Long>();
         Files.readAllLines(path).stream().mapToLong(Long::parseLong).forEach(alreadyKnownNumbers::add);
         if (toClear)
@@ -60,18 +62,37 @@ public class Main {
 
         List<Long> newFound = new ArrayList<>();
         AtomicLong counter = new AtomicLong();
+        final long predictedPrimesAmount = (long) (upperLimit/Math.log(upperLimit) - lesserLimit/Math.log(lesserLimit));  //π(b) - π(a) ≈ b/ln(b) - a/ln(a)
+
         counter.set(0);
 
         Timer timer = new Timer();
+        Timer saver = new Timer();
 
         long startTime = System.nanoTime();
-        TimerTask task = new TimerTask() {
+        TimerTask postStatisticsTask = new TimerTask() {
             @Override
             public void run() {
-                System.out.println("Already found " + counter + " Prime numbers\t\t|\t" + ((double)(System.nanoTime() - startTime)/1000000) + "ms");
+                long c = counter.longValue();
+                clearScreen();
+                System.out.print("Already found " + c + " / "+ predictedPrimesAmount +" PRime numbers ( "+ ((double)c/predictedPrimesAmount)*100 +"% )\t\t|\t" + ((double)(System.nanoTime() - startTime)/1000000) + "ms\t\t\t");
             }
         };
-        timer.scheduleAtFixedRate(task, 250, 250);
+        TimerTask saveToFileTask = new TimerTask() {
+            @Override
+            public void run() {
+                synchronized (newFound) {
+                    try {
+                        amendListToFile(path,newFound);
+
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+            }
+        } ;
+        timer.scheduleAtFixedRate(postStatisticsTask, 0, 500);
+        saver.scheduleAtFixedRate(saveToFileTask, 30*1000, 30*1000);
 
 
         LongStream.range(lesserLimit, upperLimit).parallel().forEach(num -> {
@@ -79,18 +100,31 @@ public class Main {
                 return;
             if (!isPrime(num))
                 return;
-            newFound.add(num);
-            counter.incrementAndGet();
+            synchronized (newFound) {
+                newFound.add(num);
+                counter.incrementAndGet();
+            }
         });
         long endtime = System.nanoTime();
 
-
         timer.cancel();
-        double duration = ((double) (endtime - startTime)) / 1000000;
-        IO.println("Time of execution: " + duration + "ms");
-        IO.println("Found "+ newFound.size()+" prime numbers");
+        saver.cancel();
+        amendListToFile(path,newFound);
 
-        newFound.addAll(alreadyKnownNumbers);
+        double duration = ((double) (endtime - startTime)) / 1000000;
+        System.out.println("\n\nTime of execution: " + duration + "ms");
+        System.out.println("\n\nFound "+ counter +" prime numbers");
+        newFound.clear();
+        newFound.addAll(Files.readAllLines(path).stream().map(Long::parseLong).toList());
+        newFound.addAll(alreadyKnownNumbers.stream().toList());
+        newFound.removeIf(Objects::isNull);
+
+        if(!newFound.stream().filter(Objects::isNull).toList().isEmpty()){
+            System.out.println("ERROR: Null element");
+            return;
+        }
+
+
         Collections.sort(newFound);
         Files.write(path, newFound.stream().map(Object::toString).collect(Collectors.toList()));
 
@@ -106,5 +140,27 @@ public class Main {
             }
         }
         return true;
+    }
+
+    public static void amendListToFile(Path path, List<Long> List) throws IOException {
+        Files.write(path, List.stream().map(Object::toString).collect(Collectors.toList()), StandardOpenOption.APPEND);
+        System.out.println("\rSaved "+List.size()+" Elements");
+        List.clear();
+    }
+
+    public static void clearScreen() {
+        try {
+            // Dla Windows
+            if (System.getProperty("os.name").toLowerCase().contains("win")) {
+                new ProcessBuilder("cmd", "/c", "cls").inheritIO().start().waitFor();
+            } else {
+                // Dla Unix/Linux/Mac
+                new ProcessBuilder("clear").inheritIO().start().waitFor();
+            }
+        } catch (Exception e) {
+            // Jeśli nie można uruchomić komendy, użyj ANSI
+            System.out.print("\033[H\033[2J");
+            System.out.flush();
+        }
     }
 }
