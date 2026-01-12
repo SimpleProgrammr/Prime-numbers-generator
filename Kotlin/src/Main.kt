@@ -1,6 +1,7 @@
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.*
 import java.util.stream.LongStream
 import kotlin.concurrent.atomics.AtomicLong
 import kotlin.concurrent.atomics.ExperimentalAtomicApi
@@ -45,29 +46,42 @@ fun main(args: Array<String>) {
     if (toClear)
         knownPrimes.clear()
 
-    val startTime = System.nanoTime()
+
 
     val counter = AtomicLong(0)
 
     val newPrimes = listOf<Long>().toMutableList()
-    LongStream.range(downerLimit, upperLimit).boxed().parallel().forEachOrdered {
+
+    val timer = Timer()
+
+    val startTime = System.nanoTime()
+    val task: TimerTask = object : TimerTask() {
+        override fun run() {
+            println("Already found " + counter + " Prime numbers\t\t|\t" + ((System.nanoTime() - startTime).toDouble() / 1000000) + "ms")
+        }
+    }
+    timer.scheduleAtFixedRate(task, 250, 250)
+
+    LongStream.range(downerLimit, upperLimit).parallel().forEach {
         if (knownPrimes.contains(it)) {
-            return@forEachOrdered
+            return@forEach
         }
         if (!it.isPrime()) {
-            return@forEachOrdered
+            return@forEach
         }
         newPrimes.add(it)
-        print("${counter.fetchAndIncrement()} Fount new: $it\n")
+        counter.fetchAndIncrement()
+        //print("${counter.fetchAndIncrement()} Fount new: $it\n")
     }
-
     val endtime = System.nanoTime()
+
+
+    timer.cancel()
     val duration = ((endtime - startTime).toDouble()) / 1000000
     println("Time of execution: " + duration + "ms")
-    newPrimes.parallelStream().forEach {
-        if (it != null)
-            knownPrimes.add(it)
-    }
+    println("Found " + newPrimes.size + " prime numbers")
+
+    knownPrimes.addAll(newPrimes)
     try {
         val sortedList = knownPrimes.toList().sorted()
         File(path.toString()).writeText(
