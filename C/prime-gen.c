@@ -12,9 +12,9 @@
 #include <string.h>
 #include <pthread.h>
 
-long get_cpu_count() {
-    long nprocs = -1;
-    long nprocs_max = -1;
+long long get_cpu_count() {
+    long long nprocs = -1;
+    long long nprocs_max = -1;
 #ifdef _WIN32
 #ifndef _SC_NPROCESSORS_ONLN
     SYSTEM_INFO info;
@@ -38,7 +38,7 @@ long get_cpu_count() {
                 strerror (errno));
         exit (EXIT_FAILURE);
     }
-    printf ("%ld of %ld processors online\n",nprocs, nprocs_max);
+    printf ("%lld of %lld processors online\n",nprocs, nprocs_max);
     return nprocs;
 #else
     fprintf(stderr, "Could not determine number of CPUs");
@@ -47,92 +47,138 @@ long get_cpu_count() {
 }
 
 struct run_data{
-    long start;
-    long end;
-    long jump;
+    long long start;
+    long long end;
+    long long jump;
     FILE* OUTPUT_FILE;
 };
 
 typedef struct {
     struct run_data* rd;
-    long offset;
-    long progress;
+    long long offset;
+    long long progress;
 } Thr_args;
 
-void swapElements(long* x, long* y)
-{
-    long temp = *x;
-    *x = *y;
-    *y = temp;
+void swap(long long* a, long long* b) {
+    long long temp = *a;
+    *a = *b;
+    *b = temp;
 }
-// Partition function
-long partition (long arr[], long lowIndex, long highIndex)
-{
-    long pivotElement = arr[highIndex];
-    long i = (lowIndex - 1);
-    for (long j = lowIndex; j <= highIndex- 1; j++)
-    {
-        if (arr[j] <= pivotElement)
-        {
+
+int partition(long long arr[], long long low, long long high) {
+
+    // Initialize pivot to be the first element
+    long long p = arr[low];
+    long long i = low;
+    long long j = high;
+
+    while (i < j) {
+
+        // Find the first element greater than
+        // the pivot (from starting)
+        while (arr[i] <= p && i <= high - 1) {
             i++;
-            swapElements(&arr[i], &arr[j]);
+        }
+
+        // Find the first element smaller than
+        // the pivot (from last)
+        while (arr[j] > p && j >= low + 1) {
+            j--;
+        }
+        if (i < j) {
+            swap(&arr[i], &arr[j]);
         }
     }
-    swapElements(&arr[i + 1], &arr[highIndex]);
-    return (i + 1);
+    swap(&arr[low], &arr[j]);
+    return j;
 }
-// QuickSort Function
-void quickSort(long arr[], long lowIndex, long highIndex)
-{
-    if (lowIndex < highIndex)
-    {
-        long pivot = partition(arr, lowIndex, highIndex);
-        // Separately sort elements before & after partition
-        quickSort(arr, lowIndex, pivot - 1);
-        quickSort(arr, pivot + 1, highIndex);
+
+void quickSort(long long arr[], long long low, long long high) {
+    static long long i = 0;
+    if (low < high) {
+        i++;
+        // call partition function to find Partition Index
+        long long pi = partition(arr, low, high);
+        if (i%100 == 0) {
+            printf("Quicksorting...%lld ",i);
+            fflush(stdout);
+        }
+        // Recursively call quickSort() for left and right
+        // half based on Partition Index
+        quickSort(arr, low, pi - 1);
+        quickSort(arr, pi + 1, high);
+        i--;
     }
 }
 
 void* calculate_primes(void *arg) {
     Thr_args *ta = (Thr_args*)arg;
-    for (long i = (ta->rd->start)+(ta->offset); i <= ta->rd->end; i+=ta->rd->jump) {
-        long limit = (long)(sqrt((double)i));
+    for (long long i = (ta->rd->start)+(ta->offset); i <= ta->rd->end; i+=ta->rd->jump) {
+        long long limit = (long long)(sqrt((double)i));
         bool isPrime = true;
-        for (long j = 2; j <= limit; j++) {
+        for (long long j = 2; j <= limit; j++) {
             if (i%j == 0) {
                 isPrime = false;
                 break;
             }
         }
         if (isPrime) {
-            fprintf(ta->rd->OUTPUT_FILE,"%ld\n",i);
+            fprintf(ta->rd->OUTPUT_FILE,"%lld\n",i);
         }
-        ta->progress++;
+        ta->progress+=1;
     }
     return NULL;
 }
 
+bool post_run = true;
 void * post_progress(void * arg) {
     Thr_args *ta = (Thr_args*)arg;
-    long fullRange = ta->rd->end;
+    long long fullRange = ta->rd->end;
     const int arrLen = get_cpu_count();
 
     while (1) {
-        double progress = 0;
-        usleep(250*1000);
-        for (long i = 0; i < arrLen; i++) {
+        if (!post_run)
+            return NULL;
+
+        long long progress = 0;
+
+        for (int i = 0; i < arrLen; i++) {
             progress += ta[i].progress;
         }
-        double percent = progress / (double)fullRange * 100.;
-        printf("Progress %f%%\n",percent);
+        double percent = (double)progress / (double)fullRange * 100.;
+        printf("Progress %f%%\r",percent);
+        fflush(stdout);
+#ifdef _WIN32
+        Sleep(500);
+#else
+        usleep(500*1000);
+#endif
     }
 }
 
+void bubble_sort(long long arr[], long long lowIndex, long long highIndex) {
+    long long lp;
+    do {
+        lp = 0;
+        for (long long i = lowIndex; i < highIndex; i++) {
+            if (arr[i] > arr[i+1]) {
+                swap(&arr[i],&arr[i+1]);
+                lp++;
+            }
+            if (lp%100 == 0) {
+                printf("Bubble sorting...%lld ",lp);
+                fflush(stdout);
+            }
+        }
+    }while (lp>0);
+}
+
 int main() {
-    long cpu_count = get_cpu_count();
+    pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
+    long long cpu_count = get_cpu_count();
     pthread_t threads[cpu_count];
     //Setting running data
-    struct run_data rd = {2, 100000000, cpu_count, fopen("output.txt", "w")};
+    struct run_data rd = {2, 10000000000, cpu_count, fopen("output.txt", "w")};
     if (rd.OUTPUT_FILE == NULL) {
         fprintf(stderr,"Could not open output.txt for calculations");
         exit(-404);
@@ -159,9 +205,11 @@ int main() {
     for (int i = 0; i < cpu_count; i++) {
         pthread_join(threads[i], NULL);
     }
-    pthread_cancel(post_progress_thread);
-    end = clock();
 
+    pthread_cancel(post_progress_thread);
+    post_run = false;
+
+    end = clock();
     printf("Elapsed calculating time: %Lf ms\n",( long double )(end-start)/CLOCKS_PER_SEC*1000);
     fclose(rd.OUTPUT_FILE);
     rd.OUTPUT_FILE = NULL;
@@ -175,27 +223,28 @@ int main() {
     }
 
     char line[1024];
-    long *primes = calloc(1000, sizeof(long));
+    long long *primes = calloc(1000, sizeof(long long));
     if (primes == NULL) {
         fprintf(stderr,"Could not allocate primes storage place");
         exit(-404);
     }
-    long loaded_primes = 0, storage_size = 1000;
+    long long loaded_primes = 0, storage_size = 1000;
     while (fgets(line, 1024, data_file) != NULL) {
         line[strcspn(line, "\n")] = 0;
         char* endptr = NULL;
 
         primes[loaded_primes] = strtol(line,&endptr,10);
         if (endptr == line) {
-            fprintf(stderr,"Could not convert line to long");
+            fprintf(stderr,"Could not convert line to long long");
         }else if ( *endptr != '\0' ) {
             fprintf(stderr,"Invalid character %c\n", *endptr);
         }else {
             loaded_primes++;
             if (loaded_primes >= storage_size-1) {
-                long* tmp = realloc(primes,(storage_size+1000)*sizeof(long));
+                long long* tmp = realloc(primes,(storage_size+1000)*sizeof(long long));
                 if (tmp == NULL) {
                     fprintf(stderr,"Could not reallocate primes storage place");
+                    free(primes);
                     exit(-404);
                 }
 
@@ -206,17 +255,24 @@ int main() {
     }
     fclose(data_file);
     data_file = NULL;
-    printf("Loaded %ld primes\nSorting...\n",loaded_primes);
+    printf("Loaded %lld primes\nSorting...\n",loaded_primes);
     start = clock();
-    quickSort(primes, 0, loaded_primes-1);
+    //quickSort(primes, 0, loaded_primes-1);
+    bubble_sort(primes, 0, storage_size-2);
     end = clock();
     printf("Elapsed sorting time: %Lf ms\n",( long double )(end-start)/CLOCKS_PER_SEC*1000);
 
+    printf("Saving to file...\n");
     data_file = fopen("output.txt", "w");
-    for (int i = 0; i < loaded_primes; i++) {
-        fprintf(data_file,"%ld\n",primes[i]);
+    for (long long i = 0; i < loaded_primes; i++) {
+        fprintf(data_file,"%lld\n",primes[i]);
+        if (i%100 == 0) {
+            printf("Saving...%lld ",i);
+            fflush(stdout);
+        }
     }
-
+    fclose(data_file);
+    printf("Saved!\n");
 
     free(primes);
     primes = NULL;
