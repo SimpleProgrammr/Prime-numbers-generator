@@ -174,6 +174,13 @@ void bubble_sort(long long arr[], long long lowIndex, long long highIndex) {
 }
 
 int main(int argc, char* argv[]) {
+
+    long long  limit = -1;
+    if (argc > 2)
+        limit = strtoll(argv[2],NULL,10);
+    if (limit == -1) {
+        printf("Usage: ./file [(q/b)sorting option] [calculation limit]\n");
+    }
     pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
     long long cpu_count = get_cpu_count();
     pthread_t threads[cpu_count];
