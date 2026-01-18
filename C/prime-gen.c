@@ -100,7 +100,7 @@ void quickSort(long long arr[], long long low, long long high) {
         // call partition function to find Partition Index
         long long pi = partition(arr, low, high);
         if (i%100 == 0) {
-            printf("Quicksorting...%lld ",i);
+            printf("Quick sorting...%lld\r",i);
             fflush(stdout);
         }
         // Recursively call quickSort() for left and right
@@ -166,14 +166,14 @@ void bubble_sort(long long arr[], long long lowIndex, long long highIndex) {
                 lp++;
             }
             if (lp%100 == 0) {
-                printf("Bubble sorting...%lld ",lp);
+                printf("Bubble sorting...%lld\r",lp);
                 fflush(stdout);
             }
         }
     }while (lp>0);
 }
 
-int main() {
+int main(int argc, char* argv[]) {
     pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
     long long cpu_count = get_cpu_count();
     pthread_t threads[cpu_count];
@@ -257,8 +257,10 @@ int main() {
     data_file = NULL;
     printf("Loaded %lld primes\nSorting...\n",loaded_primes);
     start = clock();
-    //quickSort(primes, 0, loaded_primes-1);
-    bubble_sort(primes, 0, storage_size-2);
+    if (argc > 1 && strcmp(argv[1],"q") == 0)
+        quickSort(primes, 0, loaded_primes-1);
+    else
+        bubble_sort(primes, 0, storage_size-2);
     end = clock();
     printf("Elapsed sorting time: %Lf ms\n",( long double )(end-start)/CLOCKS_PER_SEC*1000);
 
@@ -267,7 +269,7 @@ int main() {
     for (long long i = 0; i < loaded_primes; i++) {
         fprintf(data_file,"%lld\n",primes[i]);
         if (i%100 == 0) {
-            printf("Saving...%lld ",i);
+            printf("Saving...%lld\r",i);
             fflush(stdout);
         }
     }
