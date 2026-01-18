@@ -185,7 +185,7 @@ int main(int argc, char* argv[]) {
     long long cpu_count = get_cpu_count();
     pthread_t threads[cpu_count];
     //Setting running data
-    struct run_data rd = {2, 10000000000, cpu_count, fopen("output.txt", "w")};
+    struct run_data rd = {2, limit, cpu_count, fopen("output.txt", "w")};
     if (rd.OUTPUT_FILE == NULL) {
         fprintf(stderr,"Could not open output.txt for calculations");
         exit(-404);
