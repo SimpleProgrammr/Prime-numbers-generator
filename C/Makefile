@@ -1,6 +1,6 @@
 run: mfout primes
 	./mfout/primes
-	mv ./mfout/output.txt ./ready-primes.txt -e 10000000000 -q
+	mv ./mfout/output.txt ./ready-primes.txt -e 10000000000 -q -o output.txt
 
 mfout:
 	mkdir mfout
