@@ -12,9 +12,18 @@
 #include <string.h>
 #include <pthread.h>
 
-long long get_cpu_count() {
-    long long nprocs = -1;
-    long long nprocs_max = -1;
+struct main_settings {
+    int max_threads;
+    long long start_value;
+    long long end_value;
+    int sortingMode;
+    char* output_file_name;
+    FILE* output_file;
+} MAIN_SETTINGS;
+
+int get_cpu_count() {
+    int nprocs = -1;
+    int nprocs_max = -1;
 #ifdef _WIN32
 #ifndef _SC_NPROCESSORS_ONLN
     SYSTEM_INFO info;
@@ -38,7 +47,7 @@ long long get_cpu_count() {
                 strerror (errno));
         exit (EXIT_FAILURE);
     }
-    printf ("%lld of %lld processors online\n",nprocs, nprocs_max);
+    printf ("%d of %d processors online\n",nprocs, nprocs_max);
     return nprocs;
 #else
     fprintf(stderr, "Could not determine number of CPUs");
@@ -50,7 +59,6 @@ struct run_data{
     long long start;
     long long end;
     long long jump;
-    FILE* OUTPUT_FILE;
 };
 
 typedef struct {
@@ -124,7 +132,7 @@ void* calculate_primes(void *arg) {
             }
         }
         if (isPrime) {
-            fprintf(ta->rd->OUTPUT_FILE,"%lld\n",i);
+            fprintf(MAIN_SETTINGS.output_file,"%lld\n",i);
         }
         ta->progress+=1;
     }
@@ -150,6 +158,7 @@ void * post_progress(void * arg) {
         double percent = (double)progress / (double)fullRange * 100.;
         printf("Progress %f%%\r",percent);
         fflush(stdout);
+        fflush(MAIN_SETTINGS.output_file);
 #ifdef _WIN32
         Sleep(500);
 #else
@@ -175,43 +184,98 @@ void bubble_sort(long long arr[], long long lowIndex, long long highIndex) {
     }while (lp>0);
 }
 
-int main(int argc, char* argv[]) {
+bool setup(int argc, char* argv[]) {
+    MAIN_SETTINGS.start_value = 2;
+    MAIN_SETTINGS.end_value = 0;
+    MAIN_SETTINGS.max_threads = get_cpu_count();
+    MAIN_SETTINGS.output_file_name = NULL;
+    MAIN_SETTINGS.sortingMode = 2;
 
-    long long  limit = -1;
-    if (argc > 2)
-        limit = strtoll(argv[2],NULL,10);
-    if (limit == -1) {
-        printf("Usage: ./file [(q/b)sorting option] [calculation limit]\n");
+    char* endptr = NULL;
+    for (int i = 1; i < argc; i++) {
+        if (strlen(argv[i]) > 1) {
+            if (argv[i][0] == '-') {
+                switch (argv[i][1]) {
+                    case 'h':
+                        //TODO:help menu
+                        break;
+                    case 'q':
+                        MAIN_SETTINGS.sortingMode = 1;
+                    break;
+                    case 'b':
+                        MAIN_SETTINGS.sortingMode = 2;
+                        break;
+                    case 'e':
+                        i++;
+                        MAIN_SETTINGS.end_value = strtoll(argv[i], &endptr, 10);
+                        break;
+                    case 's':
+                        i++;
+                        MAIN_SETTINGS.start_value = (int)strtol(argv[i], &endptr, 10);
+                        if (MAIN_SETTINGS.start_value < 2) {
+                            fprintf(stderr,"Too small value for start_value");
+                            return false;
+                        }
+                        break;
+                    case 't':
+                        i++;
+                        MAIN_SETTINGS.max_threads = (int)strtol(argv[i], &endptr, 10);
+                        if (MAIN_SETTINGS.max_threads <= 0) {
+                            fprintf(stderr,"Invalid value for max_threads");
+                            return false;
+                        }
+                        break;
+                    case 'o':
+                        i++;
+                        MAIN_SETTINGS.output_file_name = argv[i];
+                        MAIN_SETTINGS.output_file = fopen( MAIN_SETTINGS.output_file_name,"w");
+                        if (MAIN_SETTINGS.output_file == NULL) {
+                            fprintf(stderr,"Could not open output file");
+                            return false;
+                        }
+                        break;
+                    default:
+                        break;
+                }
+            }
+        }
     }
+    if (MAIN_SETTINGS.end_value < MAIN_SETTINGS.start_value) {
+        fprintf(stderr,"Error: bad work values\n");
+        return false;
+    }
+    return true;
+}
+
+int main(int argc, char* argv[]) {
+    if (!setup(argc, argv)) {
+        printf("Setup failed\n");
+        return -1;
+    }
+
     pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
-    long long cpu_count = get_cpu_count();
-    pthread_t threads[cpu_count];
+
+    pthread_t threads[MAIN_SETTINGS.max_threads];
     //Setting running data
-    struct run_data rd = {2, limit, cpu_count, fopen("output.txt", "w")};
-    if (rd.OUTPUT_FILE == NULL) {
-        fprintf(stderr,"Could not open output.txt for calculations");
-        exit(-404);
-    }
-    Thr_args *targs = calloc(cpu_count, sizeof(Thr_args));
+    struct run_data rd = {MAIN_SETTINGS.start_value, MAIN_SETTINGS.end_value, MAIN_SETTINGS.max_threads};
+    Thr_args *targs = calloc(MAIN_SETTINGS.max_threads, sizeof(Thr_args));
 
     //Starting timer
     clock_t start = clock(), end = 0;
-    printf("Threads ");
     //Starting threads
-    for (int i = 0; i < cpu_count; i++) {
+    for (int i = 0; i < MAIN_SETTINGS.max_threads; i++) {
         //Combining arguments
         targs[i].rd = &rd;
         targs[i].offset = i;
         targs[i].progress = 0;
-        printf("%d, ",i);
         pthread_create(&threads[i], NULL,calculate_primes,&targs[i]);
     }
+    fflush(stdout);
     //Launching posting
     pthread_t post_progress_thread;
     pthread_create(&post_progress_thread, NULL, post_progress, targs);
-    printf("running...\n");
     fflush(stdout);
-    for (int i = 0; i < cpu_count; i++) {
+    for (int i = 0; i < MAIN_SETTINGS.max_threads; i++) {
         pthread_join(threads[i], NULL);
     }
 
@@ -220,12 +284,12 @@ int main(int argc, char* argv[]) {
 
     end = clock();
     printf("Elapsed calculating time: %Lf ms\n",( long double )(end-start)/CLOCKS_PER_SEC*1000);
-    fclose(rd.OUTPUT_FILE);
-    rd.OUTPUT_FILE = NULL;
+    fclose(MAIN_SETTINGS.output_file);
+    MAIN_SETTINGS.output_file = NULL;
     free(targs);
     targs = NULL;
 
-    FILE* data_file = fopen("output.txt", "r");
+    FILE* data_file = fopen(MAIN_SETTINGS.output_file_name, "r");
     if (data_file == NULL) {
         fprintf(stderr,"Could not open output.txt for sorting");
         exit(-404);
@@ -266,7 +330,7 @@ int main(int argc, char* argv[]) {
     data_file = NULL;
     printf("Loaded %lld primes\nSorting...\n",loaded_primes);
     start = clock();
-    if (argc > 1 && strcmp(argv[1],"q") == 0)
+    if (MAIN_SETTINGS.sortingMode == 1)
         quickSort(primes, 0, loaded_primes-1);
     else
         bubble_sort(primes, 0, storage_size-1);
@@ -274,7 +338,7 @@ int main(int argc, char* argv[]) {
     printf("Elapsed sorting time: %Lf ms\n",( long double )(end-start)/CLOCKS_PER_SEC*1000);
 
     printf("Saving to file...\n");
-    data_file = fopen("output.txt", "w");
+    data_file = fopen(MAIN_SETTINGS.output_file_name, "w");
     for (long long i = 0; i < loaded_primes; i++) {
         fprintf(data_file,"%lld\n",primes[i]);
         if (i%100 == 0) {
