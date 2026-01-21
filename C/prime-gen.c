@@ -113,6 +113,7 @@ void quickSort(long long arr[], long long low, long long high) {
 
 void* calculate_primes(void *arg) {
     Thr_args *ta = (Thr_args*)arg;
+    printf("Thread #%lld running\n",ta->offset);
     for (long long i = (ta->rd->start)+(ta->offset); i <= ta->rd->end; i+=ta->rd->jump) {
         long long limit = (long long)(sqrt((double)i));
         bool isPrime = true;
@@ -127,6 +128,7 @@ void* calculate_primes(void *arg) {
         }
         ta->progress+=1;
     }
+    printf("Thread #%lld ended\n",ta->offset);
     return NULL;
 }
 
