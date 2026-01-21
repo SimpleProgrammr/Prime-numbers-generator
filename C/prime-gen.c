@@ -64,6 +64,7 @@ struct run_data{
 typedef struct {
     struct run_data* rd;
     long long offset;
+    int additionalOffset;
     long long progress;
 } Thr_args;
 
@@ -136,7 +137,7 @@ void* calculate_primes(void *arg) {
         }
         ta->progress+=1;
     }
-    printf("Thread #%lld ended\n",ta->offset);
+    printf("Thread #%lld ended : [Start: %lld, Jump: %lld]\n",ta->offset,ta->rd->start,ta->rd->jump);
     return NULL;
 }
 
@@ -262,11 +263,17 @@ int main(int argc, char* argv[]) {
 
     //Starting timer
     clock_t start = clock(), end = 0;
+    int addOffset = 0;
     //Starting threads
     for (int i = 0; i < MAIN_SETTINGS.max_threads; i++) {
+        if ((i+rd.start+addOffset)%2==0 && rd.jump%2==0) {
+            addOffset++;
+            i--;
+            continue;
+        }
         //Combining arguments
         targs[i].rd = &rd;
-        targs[i].offset = i;
+        targs[i].offset = i + addOffset;
         targs[i].progress = 0;
         pthread_create(&threads[i], NULL,calculate_primes,&targs[i]);
     }
