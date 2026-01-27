@@ -58,13 +58,12 @@ int get_cpu_count() {
 struct run_data{
     long long start;
     long long end;
-    long long jump;
+    long long run_for;
 };
 
 typedef struct {
     struct run_data* rd;
     long long offset;
-    int additionalOffset;
     long long progress;
 } Thr_args;
 
@@ -123,8 +122,10 @@ void quickSort(long long arr[], long long low, long long high) {
 void* calculate_primes(void *arg) {
     Thr_args *ta = (Thr_args*)arg;
     printf("Thread #%lld running\n",ta->offset);
-    for (long long i = (ta->rd->start)+(ta->offset); i <= ta->rd->end; i+=ta->rd->jump) {
-        long long limit = (long long)(sqrt((double)i));
+
+    long long run_for = (ta->rd->start)+(ta->offset)+ta->rd->run_for;
+    for (long long i = (ta->rd->start)+(ta->offset); i <= ta->rd->end && i<=run_for; i+=1) {
+        long long limit = (long long)(sqrt((double)i)+1);
         bool isPrime = true;
         for (long long j = 2; j <= limit; j++) {
             if (i%j == 0) {
@@ -137,7 +138,8 @@ void* calculate_primes(void *arg) {
         }
         ta->progress+=1;
     }
-    printf("Thread #%lld ended : [Start: %lld, Jump: %lld]\n",ta->offset,ta->rd->start,ta->rd->jump);
+    printf("Thread #%lld ended : [Start: %lld, Jump: %lld]\n",ta->offset,ta->rd->start,ta->rd->run_for);
+    fflush(stdout);
     return NULL;
 }
 
@@ -258,22 +260,17 @@ int main(int argc, char* argv[]) {
 
     pthread_t threads[MAIN_SETTINGS.max_threads];
     //Setting running data
-    struct run_data rd = {MAIN_SETTINGS.start_value, MAIN_SETTINGS.end_value, MAIN_SETTINGS.max_threads};
+    long long thread_part = MAIN_SETTINGS.end_value/MAIN_SETTINGS.max_threads;
+    struct run_data rd = {MAIN_SETTINGS.start_value, MAIN_SETTINGS.end_value, thread_part};
     Thr_args *targs = calloc(MAIN_SETTINGS.max_threads, sizeof(Thr_args));
+
 
     //Starting timer
     clock_t start = clock(), end = 0;
-    int addOffset = 0;
-    //Starting threads
     for (int i = 0; i < MAIN_SETTINGS.max_threads; i++) {
-        if ((i+rd.start+addOffset)%2==0 && rd.jump%2==0) {
-            addOffset++;
-            i--;
-            continue;
-        }
         //Combining arguments
         targs[i].rd = &rd;
-        targs[i].offset = i + addOffset;
+        targs[i].offset = thread_part*i;
         targs[i].progress = 0;
         pthread_create(&threads[i], NULL,calculate_primes,&targs[i]);
     }
