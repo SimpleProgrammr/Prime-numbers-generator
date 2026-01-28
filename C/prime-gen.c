@@ -1,6 +1,8 @@
 #include <errno.h>
 #include <math.h>
 #include <stdbool.h>
+#include <stdio.h>
+#include <stdatomic.h>
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -12,13 +14,17 @@
 #include <string.h>
 #include <pthread.h>
 
+atomic_ullong INDEX = 0;
+unsigned long long *ram_storage;
+
 struct main_settings {
     int max_threads;
-    long long start_value;
-    long long end_value;
+    unsigned long long start_value;
+    unsigned long long end_value;
     int sortingMode;
     char* output_file_name;
     FILE* output_file;
+    bool use_ram_storage;
 } MAIN_SETTINGS;
 
 int get_cpu_count() {
@@ -56,27 +62,27 @@ int get_cpu_count() {
 }
 
 struct run_data{
-    long long start;
-    long long end;
-    long long run_for;
+    unsigned long long start;
+    unsigned long long end;
+    unsigned long long run_for;
 };
 
 typedef struct {
     struct run_data* rd;
-    long long offset;
-    long long progress;
+    unsigned long long offset;
+    unsigned long long progress;
 } Thr_args;
 
-void swap(long long* a, long long* b) {
-    long long temp = *a;
+void swap(unsigned long long* a, unsigned long long* b) {
+    unsigned long long temp = *a;
     *a = *b;
     *b = temp;
 }
 
-int partition(long long arr[], long long low, long long high) {
+int partition(unsigned long long arr[], unsigned long long low, unsigned long long high) {
 
     // Initialize pivot to be the first element
-    long long p = arr[low];
+    unsigned long long p = arr[low];
     long long i = low;
     long long j = high;
 
@@ -101,12 +107,13 @@ int partition(long long arr[], long long low, long long high) {
     return j;
 }
 
-void quickSort(long long arr[], long long low, long long high) {
-    static long long i = 0;
+void quickSort(unsigned long long arr[], unsigned long long low, unsigned long long high) {
+    static unsigned long long i = 0;
     if (low < high) {
         i++;
         // call partition function to find Partition Index
         long long pi = partition(arr, low, high);
+        pi = pi >=1 ? pi : 1;
         if (i%100 == 0) {
             printf("Quick sorting...%lld\r",i);
             fflush(stdout);
@@ -123,18 +130,23 @@ void* calculate_primes(void *arg) {
     Thr_args *ta = (Thr_args*)arg;
     printf("Thread #%lld running\n",ta->offset);
 
-    long long run_for = (ta->rd->start)+(ta->offset)+ta->rd->run_for;
-    for (long long i = (ta->rd->start)+(ta->offset); i <= ta->rd->end && i<=run_for; i+=1) {
-        long long limit = (long long)(sqrt((double)i)+1);
+    unsigned long long run_for = (ta->rd->start)+(ta->offset)+ta->rd->run_for;
+    for (unsigned long long i = (ta->rd->start)+(ta->offset); i <= ta->rd->end && i<=run_for; i+=1) {
+        unsigned long long limit = (unsigned long long)(sqrt((double)i)+1);
         bool isPrime = true;
-        for (long long j = 2; j <= limit; j++) {
+        for (unsigned long long j = 2; j <= limit; j++) {
             if (i%j == 0) {
                 isPrime = false;
                 break;
             }
         }
         if (isPrime) {
-            fprintf(MAIN_SETTINGS.output_file,"%lld\n",i);
+            if (MAIN_SETTINGS.use_ram_storage) {
+                unsigned long long save_to = atomic_fetch_add(&INDEX, 1);
+                ram_storage[save_to] = i;
+            }
+            else
+                fprintf(MAIN_SETTINGS.output_file,"%lld\n",i);
         }
         ta->progress+=1;
     }
@@ -146,14 +158,14 @@ void* calculate_primes(void *arg) {
 bool post_run = true;
 void * post_progress(void * arg) {
     Thr_args *ta = (Thr_args*)arg;
-    long long fullRange = ta->rd->end;
+    unsigned long long fullRange = ta->rd->end;
     const int arrLen = get_cpu_count();
 
     while (1) {
         if (!post_run)
             return NULL;
 
-        long long progress = 0;
+        unsigned long long progress = 0;
 
         for (int i = 0; i < arrLen; i++) {
             progress += ta[i].progress;
@@ -170,11 +182,11 @@ void * post_progress(void * arg) {
     }
 }
 
-void bubble_sort(long long arr[], long long lowIndex, long long highIndex) {
-    long long lp;
+void bubble_sort(unsigned long long arr[], unsigned long long lowIndex, unsigned long long highIndex) {
+    unsigned long long lp;
     do {
         lp = 0;
-        for (long long i = lowIndex; i < highIndex; i++) {
+        for (unsigned long long i = lowIndex; i < highIndex; i++) {
             if (arr[i] > arr[i+1]) {
                 swap(&arr[i],&arr[i+1]);
                 lp++;
@@ -193,6 +205,7 @@ bool setup(int argc, char* argv[]) {
     MAIN_SETTINGS.max_threads = get_cpu_count();
     MAIN_SETTINGS.output_file_name = NULL;
     MAIN_SETTINGS.sortingMode = 2;
+    MAIN_SETTINGS.use_ram_storage = false;
 
     char* endptr = NULL;
     for (int i = 1; i < argc; i++) {
@@ -202,6 +215,9 @@ bool setup(int argc, char* argv[]) {
                     case 'h':
                         //TODO:help menu
                         break;
+                    case 'r':
+                        MAIN_SETTINGS.use_ram_storage = true;
+                        printf("Warning!!!: Now you are using RAM storage for primes\n");
                     case 'q':
                         MAIN_SETTINGS.sortingMode = 1;
                     break;
@@ -260,10 +276,19 @@ int main(int argc, char* argv[]) {
 
     pthread_t threads[MAIN_SETTINGS.max_threads];
     //Setting running data
-    long long thread_part = MAIN_SETTINGS.end_value/MAIN_SETTINGS.max_threads;
+    unsigned long long thread_part = MAIN_SETTINGS.end_value/MAIN_SETTINGS.max_threads;
     struct run_data rd = {MAIN_SETTINGS.start_value, MAIN_SETTINGS.end_value, thread_part};
     Thr_args *targs = calloc(MAIN_SETTINGS.max_threads, sizeof(Thr_args));
+    unsigned long long predicted_primes_amount;
+        predicted_primes_amount = (MAIN_SETTINGS.end_value - MAIN_SETTINGS.start_value);
+    if (MAIN_SETTINGS.use_ram_storage) {
 
+        ram_storage = calloc(predicted_primes_amount, sizeof(unsigned long long));
+        if (ram_storage == NULL) {
+            fprintf(stderr,"Could not allocate memory for ram_storage");
+            return -1;
+        }
+    }
 
     //Starting timer
     clock_t start = clock(), end = 0;
@@ -293,57 +318,68 @@ int main(int argc, char* argv[]) {
     free(targs);
     targs = NULL;
 
-    FILE* data_file = fopen(MAIN_SETTINGS.output_file_name, "r");
-    if (data_file == NULL) {
-        fprintf(stderr,"Could not open output.txt for sorting");
-        exit(-404);
-    }
 
-    char line[1024];
-    long long *primes = calloc(1000, sizeof(long long));
-    if (primes == NULL) {
-        fprintf(stderr,"Could not allocate primes storage place");
-        exit(-404);
-    }
-    long long loaded_primes = 0, storage_size = 1000;
-    while (fgets(line, 1024, data_file) != NULL) {
-        line[strcspn(line, "\n")] = 0;
-        char* endptr = NULL;
+    unsigned long long *primes = calloc(1000, sizeof(unsigned long long));
+        if (primes == NULL) {
+            fprintf(stderr,"Could not allocate primes storage place");
+            exit(-404);
+        }
+    unsigned long long loaded_primes = MAIN_SETTINGS.use_ram_storage ? atomic_fetch_add(&INDEX,0) : 0;
+    FILE* data_file = NULL;
 
-        primes[loaded_primes] = strtol(line,&endptr,10);
-        if (endptr == line) {
-            fprintf(stderr,"Could not convert line to long long");
-        }else if ( *endptr != '\0' ) {
-            fprintf(stderr,"Invalid character %c\n", *endptr);
-        }else {
-            loaded_primes++;
-            if (loaded_primes >= storage_size-1) {
-                long long* tmp = realloc(primes,(storage_size+1000)*sizeof(long long));
-                if (tmp == NULL) {
-                    fprintf(stderr,"Could not reallocate primes storage place");
-                    free(primes);
-                    exit(-404);
+
+    if (!MAIN_SETTINGS.use_ram_storage) {
+        data_file = fopen(MAIN_SETTINGS.output_file_name, "r");
+        if (data_file == NULL) {
+            fprintf(stderr,"Could not open output.txt for sorting");
+            exit(-404);
+        }
+
+        char line[1024];
+
+        unsigned long long storage_size = 1000;
+        while (fgets(line, 1024, data_file) != NULL) {
+            line[strcspn(line, "\n")] = 0;
+            char* endptr = NULL;
+
+            primes[loaded_primes] = strtol(line,&endptr,10);
+            if (endptr == line) {
+                fprintf(stderr,"Could not convert line to unsigned long long");
+            }else if ( *endptr != '\0' ) {
+                fprintf(stderr,"Invalid character %c\n", *endptr);
+            }else {
+                loaded_primes++;
+                if (loaded_primes >= storage_size-1) {
+                    unsigned long long* tmp = realloc(primes,(storage_size+1000)*sizeof(unsigned long long));
+                    if (tmp == NULL) {
+                        fprintf(stderr,"Could not reallocate primes storage place");
+                        free(primes);
+                        exit(-404);
+                    }
+
+                    primes = tmp;
+                    storage_size += 1000;
                 }
-
-                primes = tmp;
-                storage_size += 1000;
             }
         }
+        fclose(data_file);
+        data_file = NULL;
+        printf("Loaded %lld primes\nSorting...\n",loaded_primes);
     }
-    fclose(data_file);
-    data_file = NULL;
-    printf("Loaded %lld primes\nSorting...\n",loaded_primes);
+    if (MAIN_SETTINGS.use_ram_storage)
+        primes = ram_storage;
+
     start = clock();
     if (MAIN_SETTINGS.sortingMode == 1)
         quickSort(primes, 0, loaded_primes-1);
     else
-        bubble_sort(primes, 0, storage_size-1);
+        bubble_sort(primes, 0, loaded_primes-1);
     end = clock();
     printf("Elapsed sorting time: %Lf ms\n",( long double )(end-start)/CLOCKS_PER_SEC*1000);
 
     printf("Saving to file...\n");
     data_file = fopen(MAIN_SETTINGS.output_file_name, "w");
-    for (long long i = 0; i < loaded_primes; i++) {
+    for (unsigned long long i = 0; i < loaded_primes; i++) {
         fprintf(data_file,"%lld\n",primes[i]);
         if (i%100 == 0) {
             printf("Saving...%lld\r",i);
@@ -355,4 +391,5 @@ int main(int argc, char* argv[]) {
 
     free(primes);
     primes = NULL;
+    ram_storage = NULL;
 }
