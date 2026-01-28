@@ -422,11 +422,15 @@ int main(int argc, char* argv[]) {
         primes = ram_storage;
 
     start = clock();
-    if (MAIN_SETTINGS.sortingMode == 1)
-        quickSort(primes, 0, loaded_primes-1);
-    else
-        bubble_sort(primes, 0, loaded_primes-1);
-    end = clock();
+    switch (MAIN_SETTINGS.sortingMode) {
+        case 1:
+            quickSort(primes, 0, loaded_primes-1);
+            break;
+        case 2:
+            bubble_sort(primes, 0, loaded_primes-1);
+            break;
+    }
+        end = clock();
     printf("Elapsed sorting time: %Lf ms\n",( long double )(end-start)/CLOCKS_PER_SEC*1000);
 
     printf("Saving to file...\n");
