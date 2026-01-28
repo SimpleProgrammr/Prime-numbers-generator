@@ -9,7 +9,6 @@
 #else
 #include <unistd.h>
 #endif
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <pthread.h>
@@ -25,6 +24,7 @@ struct main_settings {
     char* output_file_name;
     FILE* output_file;
     bool use_ram_storage;
+    bool use_gen2_thread_management;
 } MAIN_SETTINGS;
 
 int get_cpu_count() {
@@ -142,7 +142,7 @@ void* calculate_primes(void *arg) {
         }
         if (isPrime) {
             if (MAIN_SETTINGS.use_ram_storage) {
-                unsigned long long save_to = atomic_fetch_add(&INDEX, 1);
+                unsigned _Atomic long long save_to = atomic_fetch_add(&INDEX, 1);
                 ram_storage[save_to] = i;
             }
             else
@@ -151,6 +151,37 @@ void* calculate_primes(void *arg) {
         ta->progress+=1;
     }
     printf("Thread #%lld ended : [Start: %lld, Jump: %lld]\n",ta->offset,ta->rd->start,ta->rd->run_for);
+    fflush(stdout);
+    return NULL;
+}
+
+atomic_ullong NUMBER = 0;
+
+void* calculate_primes_gen2(void *arg) {
+    Thr_args *ta = (Thr_args*)arg;
+    printf("Thread #%lld running\n",ta->offset);
+    unsigned _Atomic long long i = atomic_fetch_add(&NUMBER,1);
+    while (i = atomic_fetch_add(&NUMBER,1), i <= ta->rd->end) {
+
+        unsigned long long limit = (unsigned long long)(sqrt((double)i)+1);
+        bool isPrime = true;
+        for (unsigned long long j = 2; j <= limit; j++) {
+            if (i%j == 0) {
+                isPrime = false;
+                break;
+            }
+        }
+        if (isPrime) {
+            if (MAIN_SETTINGS.use_ram_storage) {
+                unsigned _Atomic long long save_to = atomic_fetch_add(&INDEX, 1);
+                ram_storage[save_to] = i;
+            }
+            else
+                fprintf(MAIN_SETTINGS.output_file,"%lld\n",i);
+        }
+        ta->progress+=1;
+    }
+    printf("Thread #%lld ended.", ta->offset);
     fflush(stdout);
     return NULL;
 }
@@ -201,11 +232,13 @@ void bubble_sort(unsigned long long arr[], unsigned long long lowIndex, unsigned
 
 bool setup(int argc, char* argv[]) {
     MAIN_SETTINGS.start_value = 2;
+    NUMBER = MAIN_SETTINGS.start_value;
     MAIN_SETTINGS.end_value = 0;
     MAIN_SETTINGS.max_threads = get_cpu_count();
     MAIN_SETTINGS.output_file_name = NULL;
     MAIN_SETTINGS.sortingMode = 2;
     MAIN_SETTINGS.use_ram_storage = false;
+    MAIN_SETTINGS.use_gen2_thread_management = true;
 
     char* endptr = NULL;
     for (int i = 1; i < argc; i++) {
@@ -214,6 +247,9 @@ bool setup(int argc, char* argv[]) {
                 switch (argv[i][1]) {
                     case 'h':
                         //TODO:help menu
+                        break;
+                    case 'l': //legacy thread management
+                        MAIN_SETTINGS.use_gen2_thread_management = false;
                         break;
                     case 'r':
                         MAIN_SETTINGS.use_ram_storage = true;
@@ -231,6 +267,7 @@ bool setup(int argc, char* argv[]) {
                     case 's':
                         i++;
                         MAIN_SETTINGS.start_value = (int)strtol(argv[i], &endptr, 10);
+                        NUMBER = MAIN_SETTINGS.start_value - 1;
                         if (MAIN_SETTINGS.start_value < 2) {
                             fprintf(stderr,"Too small value for start_value");
                             return false;
@@ -279,10 +316,8 @@ int main(int argc, char* argv[]) {
     unsigned long long thread_part = MAIN_SETTINGS.end_value/MAIN_SETTINGS.max_threads;
     struct run_data rd = {MAIN_SETTINGS.start_value, MAIN_SETTINGS.end_value, thread_part};
     Thr_args *targs = calloc(MAIN_SETTINGS.max_threads, sizeof(Thr_args));
-    unsigned long long predicted_primes_amount;
-        predicted_primes_amount = (MAIN_SETTINGS.end_value - MAIN_SETTINGS.start_value);
+    unsigned long long predicted_primes_amount = (MAIN_SETTINGS.end_value - MAIN_SETTINGS.start_value);
     if (MAIN_SETTINGS.use_ram_storage) {
-
         ram_storage = calloc(predicted_primes_amount, sizeof(unsigned long long));
         if (ram_storage == NULL) {
             fprintf(stderr,"Could not allocate memory for ram_storage");
@@ -292,12 +327,25 @@ int main(int argc, char* argv[]) {
 
     //Starting timer
     clock_t start = clock(), end = 0;
-    for (int i = 0; i < MAIN_SETTINGS.max_threads; i++) {
-        //Combining arguments
-        targs[i].rd = &rd;
-        targs[i].offset = thread_part*i;
-        targs[i].progress = 0;
-        pthread_create(&threads[i], NULL,calculate_primes,&targs[i]);
+    switch (MAIN_SETTINGS.use_gen2_thread_management) {
+        case false:
+            for (int i = 0; i < MAIN_SETTINGS.max_threads; i++) {
+                //Combining arguments
+                targs[i].rd = &rd;
+                targs[i].offset = thread_part*i;
+                targs[i].progress = 0;
+                pthread_create(&threads[i], NULL,calculate_primes,&targs[i]);
+            }
+            break;
+        case true:
+            for (int i = 0; i < MAIN_SETTINGS.max_threads; i++) {
+                //Combining arguments
+                targs[i].rd = &rd;
+                targs[i].offset = i;
+                targs[i].progress = 0;
+                pthread_create(&threads[i], NULL,calculate_primes_gen2,&targs[i]);
+            }
+            break;
     }
     fflush(stdout);
     //Launching posting
@@ -324,7 +372,11 @@ int main(int argc, char* argv[]) {
             fprintf(stderr,"Could not allocate primes storage place");
             exit(-404);
         }
-    unsigned long long loaded_primes = MAIN_SETTINGS.use_ram_storage ? atomic_fetch_add(&INDEX,0) : 0;
+    unsigned _Atomic long long loaded_primes;
+    if (MAIN_SETTINGS.use_ram_storage)
+        loaded_primes = atomic_fetch_add(&INDEX, 0);
+    else
+        loaded_primes = 0;
     FILE* data_file = NULL;
 
 
