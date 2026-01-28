@@ -236,7 +236,7 @@ bool setup(int argc, char* argv[]) {
     MAIN_SETTINGS.end_value = 0;
     MAIN_SETTINGS.max_threads = get_cpu_count();
     MAIN_SETTINGS.output_file_name = NULL;
-    MAIN_SETTINGS.sortingMode = 2;
+    MAIN_SETTINGS.sortingMode = 0;
     MAIN_SETTINGS.use_ram_storage = false;
     MAIN_SETTINGS.use_gen2_thread_management = true;
 
@@ -254,9 +254,10 @@ bool setup(int argc, char* argv[]) {
                     case 'r':
                         MAIN_SETTINGS.use_ram_storage = true;
                         printf("Warning!!!: Now you are using RAM storage for primes\n");
+                        break;
                     case 'q':
                         MAIN_SETTINGS.sortingMode = 1;
-                    break;
+                        break;
                     case 'b':
                         MAIN_SETTINGS.sortingMode = 2;
                         break;
@@ -422,10 +423,14 @@ int main(int argc, char* argv[]) {
         primes = ram_storage;
 
     start = clock();
-    if (MAIN_SETTINGS.sortingMode == 1)
-        quickSort(primes, 0, loaded_primes-1);
-    else
-        bubble_sort(primes, 0, loaded_primes-1);
+    switch (MAIN_SETTINGS.sortingMode) {
+        case 1:
+            quickSort(primes, 0, loaded_primes-1);
+            break;
+        case 2:
+            bubble_sort(primes, 0, loaded_primes-1);
+            break;
+    }
     end = clock();
     printf("Elapsed sorting time: %Lf ms\n",( long double )(end-start)/CLOCKS_PER_SEC*1000);
 
